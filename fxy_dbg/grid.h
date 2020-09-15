@@ -1,0 +1,6 @@
+#define FXY_DBG_GUI_GRID_X		(0)
+#define FXY_DBG_GUI_GRID_Y		(0)
+#define FXY_DBG_GUI_GRID_W		(0.025)
+#define FXY_DBG_GUI_GRID_H		(0.04)
+#define FXY_DBG_GUI_GRID_WAbs	(1)
+#define FXY_DBG_GUI_GRID_HAbs	(1)
