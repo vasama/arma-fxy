@@ -45,21 +45,25 @@ fxy_dbg_fn_array_delete =
 	_array
 };
 
-// [[any...], [string...]] -> bool
-fxy_dbg_fn_checkArray =
+// [value, minCount] -> bool
+local _fn_arrayCheck =
 {
-	local _actual = _this select 0;
-	local _expect = _this select 1;
+	local _value = _this select 0;
+	!isnil "_value" && { typename _value == "ARRAY" && { count _value >= (_this select 1) } }
+};
 
-	if (count _actual != count _expect) exitWith { false };
+// [array, index, type, default] -> type
+local _fn_safeSelect =
+{
+	local _array = _this select 0;
+	local _index = _this select 1;
 
-	local _result = true;
+	if (_index >= count _array) exitWith { _this select 3 };
 
-	{
-		if (isnil "_x" || { typename _x != (_expect select _foreachIndex) }) exitWith { _result = false };
-	} foreach _actual;
+	local _value = _array select _index;
+	if (isnil "_value" || { typename _value != (_this select 2) }) exitWith { _this select 3 };
 
-	_result
+	_value
 };
 
 // [rgba, rgba]
@@ -480,6 +484,7 @@ struct file
 	string      name
 	path        path
 	string      data
+	string      args
 	int         tab
 }
 
@@ -494,15 +499,17 @@ struct node
 
 node[] filesystem
 */
-#define File_New(path, name) [name, path, (path) call fxy_dbg_fn_path_format, "", -1]
+#define File_New(path, name) [name, path, (path) call fxy_dbg_fn_path_format, "", "", -1]
 
 #define File_GetName(f)		Struct_Get(f, 0)
 #define File_GetPath(f)		Struct_Get(f, 1)
 #define File_GetPathF(f)	Struct_Get(f, 2)
 #define File_GetData(f)		Struct_Get(f, 3)
 #define File_SetData(f, d)	Struct_Set(f, 3, d)
-#define File_GetTab(f)		Struct_Get(f, 4)
-#define File_SetTab(f, t)	Struct_Set(f, 4, t)
+#define File_GetArgs(f)		Struct_Get(f, 4)
+#define File_SetArgs(f, d)	Struct_Set(f, 4, d)
+#define File_GetTab(f)		Struct_Get(f, 5)
+#define File_SetTab(f, t)	Struct_Set(f, 5, t)
 
 #define Node_New(path, name) [name, path, [], [], true]
 
@@ -657,10 +664,11 @@ fxy_dbg_fn_file_delete =
 	_tree call fxy_dbg_fn_tree_clean;
 };
 
-// [file, string]
+// [file, string, string]
 fxy_dbg_fn_file_write =
 {
 	File_SetData(_this select 0, _this select 1);
+	File_SetArgs(_this select 0, _this select 2);
 	fxy_dbg_filesystem_modified = true;
 };
 
@@ -696,7 +704,7 @@ fxy_dbg_fn_filesystem_serialize_i =
 
 	// foreach file
 	{
-		_result set [count _result, [_path + File_GetName(_x), File_GetData(_x)]];
+		_result set [count _result, [_path + File_GetName(_x), File_GetData(_x), File_GetArgs(_x)]];
 	} foreach Node_GetFiles(_this select 1);
 
 	// foreach node
@@ -720,23 +728,24 @@ fxy_dbg_fn_filesystem_serialize =
 
 // load files
 local _files = profileNamespace getVariable ["fxy_dbg_files", []];
-if (typename _files != "ARRAY") then { _files = []; };
 
+if ([_files, 0] call _fn_arrayCheck) then
 {
-	if (typename _x == "ARRAY" && {
-		count _x == 2 && {
-			typename (_x select 0) == "STRING" && {
-				typename (_x select 1) == "STRING" } } }) then
 	{
-		local _path = _x select 0 call fxy_dbg_fn_path_parse;
-
-		if (count _path > 0) then
+		if ([_x, 1] call _fn_arrayCheck) then
 		{
+			local _path = [_x, 0, "STRING", ""] call _fn_safeSelect;
+			_path = _path call fxy_dbg_fn_path_parse;
+			if (count _path == 0) exitWith {};
+
+			local _data = [_x, 1, "STRING", ""] call _fn_safeSelect;
+			local _args = [_x, 2, "STRING", ""] call _fn_safeSelect;
+
 			local _file = [_path, true] call fxy_dbg_fn_file_open;
-			[_file, _x select 1] call fxy_dbg_fn_file_write;
+			[_file, _data, _args] call fxy_dbg_fn_file_write;
 		};
-	};
-} foreach _files;
+	} foreach _files;
+};
 
 fxy_dbg_filesystem_modified = false;
 
@@ -1034,20 +1043,23 @@ struct tab
 {
 	file        file
 	string      data
+	string      args
 	bool        modified
 	bool        selected
 }
 */
-#define Tab_New(file, data) [file, data, false, false]
+#define Tab_New(file, data, args) [file, data, args, false, false]
 
 #define Tab_GetFile(t)		Struct_Get(t, 0)
 #define Tab_SetFile(t, f)	Struct_Set(t, 0, f)
 #define Tab_GetData(t)		Struct_Get(t, 1)
 #define Tab_SetData(t, d)	Struct_Set(t, 1, d)
-#define Tab_GetMod(t)		Struct_Get(t, 2)
-#define Tab_SetMod(t, m)	Struct_Set(t, 2, m)
-#define Tab_GetCur(t)		Struct_Get(t, 3)
-#define Tab_SetCur(t, s)	Struct_Set(t, 3, s)
+#define Tab_GetArgs(t)		Struct_Get(t, 2)
+#define Tab_SetArgs(t, d)	Struct_Set(t, 2, d)
+#define Tab_GetMod(t)		Struct_Get(t, 3)
+#define Tab_SetMod(t, m)	Struct_Set(t, 3, m)
+#define Tab_GetCur(t)		Struct_Get(t, 4)
+#define Tab_SetCur(t, s)	Struct_Set(t, 4, s)
 
 fxy_dbg_tabs_idc = [
 	IDC_FXY_DBG_TAB0,
@@ -1078,44 +1090,38 @@ fxy_dbg_tabs resize count fxy_dbg_tabs_idc;
 
 // load tabs
 local _tabs = profileNamespace getVariable ["fxy_dbg_tabs", []];
-if (typename _tabs != "ARRAY") then { _tabs = []; };
 
-for "_i" from 0 to count fxy_dbg_tabs - 1 do
+if ([_tabs, 0] call _fn_arrayCheck) then
 {
-	local _tab = nil;
-
-	if (_i < count _tabs) then
+	for "_i" from 0 to count fxy_dbg_tabs - 1 do
 	{
-		_tab = _tabs select _i;
+		local _tab = _tabs select _i;
+		local _file = [_tab, 0, "STRING", ""] call _fn_safeSelect call fxy_dbg_fn_path_parse;
+		_file = [_file, false] call fxy_dbg_fn_file_open;
 
-		if (typename _tab == "ARRAY" && { [_tab, ["STRING", "STRING"]] call fxy_dbg_fn_checkArray }) then
+		local _data = [_tab, 1, "STRING", ""] call _fn_safeSelect;
+		local _args = [_tab, 2, "STRING", ""] call _fn_safeSelect;
+
+		local _mod = false;
+		if (isnil "_file") then
 		{
-			local _file = [_tab select 0 call fxy_dbg_fn_path_parse, false] call fxy_dbg_fn_file_open;
-			_tab = Tab_New(_file, _tab select 1);
-
-			if (isnil "_file") then
-			{
-				Tab_SetMod(_tab, Tab_GetData(_tab) != "");
-			}
-			else
-			{
-				File_SetTab(_file, _i);
-
-				local _match = [File_GetData(_file), Tab_GetData(_tab)] call fxy_dbg_fn_fs_compare;
-				Tab_SetMod(_tab, !_match);
-			};
+			_mod = _data != "" || { _args != "" };
+			_file = [nil];
 		}
 		else
 		{
-			_tab = Tab_New(nil, "");
+			File_SetTab(_file, _i);
+			_mod = 
+				!([_data, File_GetData(_file)] call fxy_dbg_fn_fs_compare) || {
+				!([_args, File_GetArgs(_file)] call fxy_dbg_fn_fs_compare) };
+			_file = [_file];
 		};
-	}
-	else
-	{
-		_tab = Tab_New(nil, "");
-	};
 
-	fxy_dbg_tabs set [_i, _tab];
+		_tab = Tab_New(_file select 0, _data, _args);
+		Tab_SetMod(_tab, _mod);
+
+		fxy_dbg_tabs set [_i, _tab];
+	};
 };
 
 fxy_dbg_tabs_current = profileNamespace getVariable ["fxy_dbg_tabs_cur", 0];
@@ -1231,16 +1237,19 @@ fxy_dbg_fn_tabs_cycleBackward =
 	[_this, _index] call fxy_dbg_fn_tabs_select;
 };
 
-// -> string
+// -> [string, string]
 fxy_dbg_fn_tabs_read =
 {
-	Tab_GetData(fxy_dbg_tabs select fxy_dbg_tabs_current)
+	local _tab = fxy_dbg_tabs select fxy_dbg_tabs_current;
+	[Tab_GetData(_tab), Tab_GetArgs(_tab)]
 };
 
-// string -> 
+// [string, string] -> nil
 fxy_dbg_fn_tabs_write =
 {
-	Tab_SetData(fxy_dbg_tabs select fxy_dbg_tabs_current, _this);
+	local _tab = fxy_dbg_tabs select fxy_dbg_tabs_current;
+	Tab_SetData(_tab, _this select 0);
+	Tab_SetArgs(_tab, _this select 1);
 };
 
 fxy_dbg_tabs_checkModifiedIndex = -1;
@@ -1258,26 +1267,26 @@ fxy_dbg_fn_tabs_checkModified =
 {
 	local _tab = fxy_dbg_tabs select fxy_dbg_tabs_checkModifiedIndex;
 
-	local _text =
-		if (fxy_dbg_tabs_checkModifiedIndex == fxy_dbg_tabs_current) then
-		{
-			_this call fxy_dbg_fn_editor_getText
-		}
-		else
-		{
-			Tab_GetData(_tab)
-		};
+	local _data = Tab_GetData(_tab);
+	local _args = Tab_GetArgs(_tab);
+
+	if (fxy_dbg_tabs_checkModifiedIndex == fxy_dbg_tabs_current) then
+	{
+		_data = _this call fxy_dbg_fn_editor_getText;
+		_args = _this call fxy_dbg_fn_editor_getArgsText;
+	};
 
 	local _file = Tab_GetFile(_tab);
 
 	local _mod =
 		if (isnil "_file") then
 		{
-			_text != ""
+			_data != "" || { _args != "" }
 		}
 		else
 		{
-			!([_text, File_GetData(_file)] call fxy_dbg_fn_fs_compare)
+			!([_data, File_GetData(_file)] call fxy_dbg_fn_fs_compare) || {
+			!([_args, File_GetArgs(_file)] call fxy_dbg_fn_fs_compare) }
 		};
 
 	if (!(_mod in [Tab_GetMod(_tab)])) then
@@ -1303,6 +1312,7 @@ fxy_dbg_fn_tabs_close_i =
 	};
 
 	Tab_SetData(_tab, "");
+	Tab_SetArgs(_tab, "");
 	Tab_SetMod(_tab, false);
 
 	_this call fxy_dbg_fn_tabs_update;
@@ -1334,7 +1344,9 @@ fxy_dbg_eh_tabs_close_onPathSelected =
 		[_this select 0, "File is already open."] call fxy_dbg_fn_setError;
 	};
 
-	[_file, Tab_GetData(_file)] call fxy_dbg_fn_file_write;
+	local _tab = fxy_dbg_tabs select (_this select 2);
+
+	[_file, Tab_GetData(_tab), Tab_GetArgs(_tab)] call fxy_dbg_fn_file_write;
 
 	call fxy_dbg_fn_file_list_format;
 	_this select 0 call fxy_dbg_fn_file_list_update;
@@ -1359,7 +1371,7 @@ fxy_dbg_eh_tabs_close_onConfirmed =
 			}
 			else
 			{
-				[_file, Tab_GetData(_tab)] call fxy_dbg_fn_file_write;
+				[_file, Tab_GetData(_tab), Tab_GetArgs(_tab)] call fxy_dbg_fn_file_write;
 				[_this select 0, _this select 1] call fxy_dbg_fn_tabs_close_i;
 			};
 		};
@@ -1443,7 +1455,7 @@ fxy_dbg_eh_tabs_save_as_onPathSelected =
 	File_SetTab(_file, _index);
 	Tab_SetFile(_tab, _file);
 
-	[Tab_GetFile(_tab), Tab_GetData(_tab)] call fxy_dbg_fn_file_write;
+	[Tab_GetFile(_tab), Tab_GetData(_tab), Tab_GetArgs(_tab)] call fxy_dbg_fn_file_write;
 	Tab_SetMod(_tab, false);
 
 	call fxy_dbg_fn_file_list_format;
@@ -1477,7 +1489,7 @@ fxy_dbg_fn_tabs_save =
 
 	if (isnil "_file") exitWith { _this call fxy_dbg_fn_tabs_save_as };
 
-	[Tab_GetFile(_tab), Tab_GetData(_tab)] call fxy_dbg_fn_file_write;
+	[Tab_GetFile(_tab), Tab_GetData(_tab), Tab_GetArgs(_tab)] call fxy_dbg_fn_file_write;
 	Tab_SetMod(_tab, false);
 
 	_this call fxy_dbg_fn_tabs_update;
@@ -1500,6 +1512,7 @@ fxy_dbg_fn_tabs_load_i =
 	File_SetTab(_file, _index);
 	Tab_SetFile(_tab, _file);
 	Tab_SetData(_tab, File_GetData(_file));
+	Tab_SetArgs(_tab, File_GetArgs(_file));
 	Tab_SetMod(_tab, false);
 
 	fxy_dbg_tabs_modified = true;
@@ -1538,7 +1551,7 @@ fxy_dbg_eh_tabs_load_onPathSelected =
 		[_this select 0, "File is already open."] call fxy_dbg_fn_setError;
 	};
 
-	[_prevfile, Tab_GetData(_tab)] call fxy_dbg_fn_file_write;
+	[_prevfile, Tab_GetData(_tab), Tab_GetArgs(_tab)] call fxy_dbg_fn_file_write;
 
 	call fxy_dbg_fn_file_list_format;
 	_this select 0 call fxy_dbg_fn_file_list_update;
@@ -1565,7 +1578,7 @@ fxy_dbg_eh_tabs_load_onConfirmed =
 			}
 			else
 			{
-				[_prevfile, Tab_GetData(_tab)] call fxy_dbg_fn_file_write;
+				[_prevfile, Tab_GetData(_tab), Tab_GetArgs(_tab)] call fxy_dbg_fn_file_write;
 				File_SetTab(_prevfile, -1);
 
 				[_this select 0, _index, _args select 0] call fxy_dbg_fn_tabs_load_i;
@@ -1641,7 +1654,7 @@ fxy_dbg_fn_tabs_serialize =
 				_path = File_GetPathF(_file);
 			};
 
-			_tabs set [_foreachIndex, [_path, Tab_GetData(_x)]];
+			_tabs set [_foreachIndex, [_path, Tab_GetData(_x), Tab_GetArgs(_x)]];
 		} foreach fxy_dbg_tabs;
 
 		profileNamespace setVariable ["fxy_dbg_tabs", _tabs];
@@ -1664,7 +1677,9 @@ fxy_dbg_eh_tabs_onButtonClick =
 // display
 fxy_dbg_fn_editor_update =
 {
-	_this displayCtrl IDC_FXY_DBG_EDITOR ctrlSetText call fxy_dbg_fn_tabs_read;
+	local _data = call fxy_dbg_fn_tabs_read;
+	_this displayCtrl IDC_FXY_DBG_EDITOR ctrlSetText (_data select 0);
+	_this displayCtrl IDC_FXY_DBG_EDITOR_ARGS ctrlSetText (_data select 1);
 };
 
 // display
@@ -1674,43 +1689,55 @@ fxy_dbg_fn_editor_getText =
 };
 
 // display
+fxy_dbg_fn_editor_getArgsText =
+{
+	ctrlText (_this displayCtrl IDC_FXY_DBG_EDITOR_ARGS)
+};
+
+// display
 fxy_dbg_fn_editor_compile =
 {
 	compile ctrlText (_this displayCtrl IDC_FXY_DBG_EDITOR)
 };
 
 // display
-fxy_dbg_fn_editor_commit =
+fxy_dbg_fn_editor_getArgs =
 {
-	ctrlText (_this displayCtrl IDC_FXY_DBG_EDITOR) call fxy_dbg_fn_tabs_write;
+	local _args = call compile ctrlText (_this displayCtrl IDC_FXY_DBG_EDITOR_ARGS);
+	if (isnil "_args") then { _args = []; };
+	_args
 };
 
-// [control]
-fxy_dbg_eh_editor_onSetFocus =
+// display
+fxy_dbg_fn_editor_commit =
 {
-	_this select 0 call fxy_dbg_fn_reserveFocus;
+	[
+		ctrlText (_this displayCtrl IDC_FXY_DBG_EDITOR),
+		ctrlText (_this displayCtrl IDC_FXY_DBG_EDITOR_ARGS)
+	] call fxy_dbg_fn_tabs_write;
 };
 
 // [control]
 fxy_dbg_eh_editor_onKillFocus =
 {
-	ctrlText (_this select 0) call fxy_dbg_fn_tabs_write;
+	ctrlParent (_this select 0) call fxy_dbg_fn_editor_commit;
 };
 
 // [control, int key, bool shift, bool ctrl, bool alt]
 fxy_dbg_eh_editor_onKeyUp =
 {
+	local _disp = ctrlParent (_this select 0);
 	local _key = _this select 1;
 
 	if (_key in fxy_dbg_enterKeys) exitWith
 	{
-		[] call (ctrlParent (_this select 0) call fxy_dbg_fn_editor_compile);
+		(_disp call fxy_dbg_fn_editor_getArgs) call (_disp call fxy_dbg_fn_editor_compile);
 		true
 	};
 
 	if (fxy_dbg_tabs_checkModifiedTime == 0) then
 	{
-		ctrlParent (_this select 0) call fxy_dbg_fn_tabs_modify;
+		_disp call fxy_dbg_fn_tabs_modify;
 		false
 	};
 };
@@ -1727,26 +1754,31 @@ fxy_dbg_eh_toggleFiles_onButtonClick =
 // [control]
 fxy_dbg_eh_execLocal_onButtonClick =
 {
-	[] call (ctrlParent (_this select 0) call fxy_dbg_fn_editor_compile);
+	local _disp = ctrlParent (_this select 0);
+	(_disp call fxy_dbg_fn_editor_getArgs) call (_disp call fxy_dbg_fn_editor_compile);
 };
 
 // [control]
 fxy_dbg_eh_execServer_onButtonClick =
 {
-	ctrlParent (_this select 0) call fxy_dbg_fn_editor_getText call fxy_dbg_fn_serverExec;
+	local _disp = ctrlParent (_this select 0);
+	[_disp call fxy_dbg_fn_editor_getText, _disp call fxy_dbg_fn_editor_getArgs] call fxy_dbg_fn_serverExec;
 };
 
 // [control]
 fxy_dbg_eh_execGlobal_onButtonClick =
 {
-	ctrlParent (_this select 0) call fxy_dbg_fn_editor_getText call fxy_dbg_fn_globalExec;
+	local _disp = ctrlParent (_this select 0);
+	[_disp call fxy_dbg_fn_editor_getText, _disp call fxy_dbg_fn_editor_getArgs] call fxy_dbg_fn_globalExec;
 };
 
 // [control]
 fxy_dbg_eh_performance_onButtonClick =
 {
-	local _code = ctrlParent (_this select 0) call fxy_dbg_fn_editor_compile;
-	local _result = _code call fxy_dbg_fn_perf;
+	local _disp = ctrlParent (_this select 0);
+	local _code = _disp call fxy_dbg_fn_editor_compile;
+	local _args = _disp call fxy_dbg_fn_editor_getArgs;
+	local _result = [_code, _args] call fxy_dbg_fn_perf;
 
 	systemChat format ["%1 cycles @ %2 ms", [str (_result select 1), 6] call fxy_dbg_fn_padRight, [str (_result select 0), 12] call fxy_dbg_fn_padRight];
 };
