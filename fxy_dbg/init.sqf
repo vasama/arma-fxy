@@ -80,11 +80,14 @@ fxy_dbg_fn_combineColors =
 	]
 };
 
-// code -> [float time, int cycles]
+// [code, any] -> [float time, int cycles]
 fxy_dbg_fn_perf =
 {
+	local _code = _this select 0;
+	_this = _this select 1;
+
 	local _ta = diag_ticktime;
-	for "_i" from 1 to 100 do _this;
+	for "_i" from 1 to 100 do _code;
 	_ta = diag_ticktime - _ta;
 
 	if (_ta > 1) exitWith { [_ta * 10, 100] };
@@ -92,7 +95,7 @@ fxy_dbg_fn_perf =
 	local _c = (99900) min round (((1 - _ta) * 100) / (_ta max 0.00001));
 
 	local _tb = diag_ticktime;
-	for "_i" from 1 to _c do _this;
+	for "_i" from 1 to _c do _code;
 	_tb = diag_ticktime - _tb;
 
 	[(_ta + _tb) / (100 + _c) * 1000, 100 + _c]
@@ -1093,7 +1096,7 @@ local _tabs = profileNamespace getVariable ["fxy_dbg_tabs", []];
 
 if ([_tabs, 0] call _fn_arrayCheck) then
 {
-	for "_i" from 0 to count fxy_dbg_tabs - 1 do
+	for "_i" from 0 to count _tabs - 1 do
 	{
 		local _tab = _tabs select _i;
 		local _file = [_tab, 0, "STRING", ""] call _fn_safeSelect call fxy_dbg_fn_path_parse;
