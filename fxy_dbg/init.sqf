@@ -1093,38 +1093,43 @@ fxy_dbg_tabs resize count fxy_dbg_tabs_idc;
 
 // load tabs
 local _tabs = profileNamespace getVariable ["fxy_dbg_tabs", []];
+if (typename _tabs != "ARRAY") then { _tabs = []; };
 
-if ([_tabs, 0] call _fn_arrayCheck) then
+for "_i" from 0 to count fxy_dbg_tabs - 1 do
 {
-	for "_i" from 0 to count _tabs - 1 do
+	local _fileBox = [nil];
+	local _data = "";
+	local _args = "";
+	local _mod = false;
+
+	if (_i < count _tabs) then
 	{
 		local _tab = _tabs select _i;
-		local _file = [_tab, 0, "STRING", ""] call _fn_safeSelect call fxy_dbg_fn_path_parse;
-		_file = [_file, false] call fxy_dbg_fn_file_open;
 
-		local _data = [_tab, 1, "STRING", ""] call _fn_safeSelect;
-		local _args = [_tab, 2, "STRING", ""] call _fn_safeSelect;
+		local _path = [_tab, 0, "STRING", ""] call _fn_safeSelect call fxy_dbg_fn_path_parse;
+		local _file = [_path, false] call fxy_dbg_fn_file_open;
 
-		local _mod = false;
+		_data = [_tab, 1, "STRING", ""] call _fn_safeSelect;
+		_args = [_tab, 2, "STRING", ""] call _fn_safeSelect;
+
 		if (isnil "_file") then
 		{
-			_mod = _data != "" || { _args != "" };
-			_file = [nil];
+			_mod = _data != "" || _args != "";
 		}
 		else
 		{
 			File_SetTab(_file, _i);
-			_mod = 
+			_mod =
 				!([_data, File_GetData(_file)] call fxy_dbg_fn_fs_compare) || {
 				!([_args, File_GetArgs(_file)] call fxy_dbg_fn_fs_compare) };
-			_file = [_file];
+			_fileBox = [_file];
 		};
-
-		_tab = Tab_New(_file select 0, _data, _args);
-		Tab_SetMod(_tab, _mod);
-
-		fxy_dbg_tabs set [_i, _tab];
 	};
+
+	local _tab = Tab_New(_fileBox select 0, _data, _args);
+	Tab_SetMod(_tab, _mod);
+
+	fxy_dbg_tabs set [_i, _tab];
 };
 
 fxy_dbg_tabs_current = profileNamespace getVariable ["fxy_dbg_tabs_cur", 0];
