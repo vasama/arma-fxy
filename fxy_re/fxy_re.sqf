@@ -9,8 +9,8 @@ fxy_re_fn_c: [object, callable]
 // Remote execute on the machine which owns the object and wait for the result.
 fxy_re_fns_cw: [object, callable] -> result
 
-// Remote execute on the machine which owns the object and invoke a callback with the result.
-fxy_re_fns_ca: [object, callable, [code, context]]
+// Remote execute on the machine which owns the object and invoke a callback with [context, result].
+fxy_re_fn_ca: [object, callable, [code, context]]
 
 // Remote execute on the server.
 fxy_re_fn_s: callable
@@ -18,8 +18,8 @@ fxy_re_fn_s: callable
 // Remote execute on the server and wait for the result.
 fxy_re_fns_sw: callable -> result
 
-// Remote execute on the server and invoke a callback with the result.
-fxy_re_fns_sa: [object, callable, [code, context]]
+// Remote execute on the server and invoke a callback with [context, result].
+fxy_re_fn_sa: [object, callable, [code, context]]
 */
 
 
@@ -194,11 +194,11 @@ if isServer then
 		};
 	};
 
-	// [result, [id, object]]
+	// [[id, object], result]
 	fxy_re_fn_f =
 	{
-		local _c = _this select 1;
-		fxy_re_pvc_r = [_c select 1, _this select 0];
+		local _c = _this select 0;
+		fxy_re_pvc_r = [_c select 0, _this select 1];
 		owner (_c select 1) publicVariableClient "fxy_re_pvc_r";
 	};
 
@@ -322,7 +322,7 @@ else
 
 		if (count _data > 1) then
 		{
-			fxy_re_pvs_r = [_r, _data select 1];
+			fxy_re_pvs_r = [_data select 1, _r];
 			publicVariableServer "fxy_re_pvs_r";
 		};
 	};
@@ -373,7 +373,7 @@ fxy_re_fns_cw =
 	_ctx select 0
 };
 
-if (!isServer) then
+if hasInterface then
 {
 	fxy_dbg_fn_serverExec = fxy_re_fn_s;
 	fxy_dbg_fn_globalExec = fxy_re_fn_g;
